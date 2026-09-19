@@ -46,7 +46,27 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  -- Thu nhap RIENG cho tung thang (khong con dung chung 1 gia tri cho moi thang)
+  CREATE TABLE IF NOT EXISTS incomes (
+    month TEXT PRIMARY KEY,   -- 'YYYY-MM'
+    amount REAL NOT NULL DEFAULT 0
+  );
+
+  -- Ngan sach moi danh muc cung duoc tach RIENG cho tung thang
+  CREATE TABLE IF NOT EXISTS budgets (
+    month TEXT NOT NULL,      -- 'YYYY-MM'
+    category_id INTEGER NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (month, category_id),
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+  );
 `);
+
+function currentMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 // Seed du lieu danh muc mac dinh neu bang dang rong
 const categoryCount = db.prepare("SELECT COUNT(*) AS c FROM categories").get().c;
@@ -67,4 +87,32 @@ if (categoryCount === 0) {
   for (const row of defaults) insert.run(...row);
 }
 
+// Di chuyen du lieu tu phien ban cu (luong/ngan sach dung CHUNG cho moi thang)
+// sang thang hien tai, de khong mat cau hinh ban da nhap truoc do. Chi chay
+// DUY NHAT 1 LAN (khi bang budgets/incomes con rong) — tu do ve sau moi thang
+// se hoan toan doc lap voi nhau.
+const budgetCount = db.prepare("SELECT COUNT(*) AS c FROM budgets").get().c;
+if (budgetCount === 0) {
+  const thisMonth = currentMonthStr();
+  const catsWithBudget = db
+    .prepare("SELECT id, monthly_budget FROM categories WHERE monthly_budget > 0")
+    .all();
+  const insertBudget = db.prepare(
+    "INSERT OR IGNORE INTO budgets (month, category_id, amount) VALUES (?, ?, ?)"
+  );
+  for (const c of catsWithBudget) insertBudget.run(thisMonth, c.id, c.monthly_budget);
+}
+
+const incomeCount = db.prepare("SELECT COUNT(*) AS c FROM incomes").get().c;
+if (incomeCount === 0) {
+  const legacy = db.prepare("SELECT value FROM settings WHERE key = 'monthly_income'").get();
+  if (legacy && Number(legacy.value) > 0) {
+    db.prepare("INSERT INTO incomes (month, amount) VALUES (?, ?)").run(
+      currentMonthStr(),
+      Number(legacy.value)
+    );
+  }
+}
+
 module.exports = db;
+module.exports.currentMonthStr = currentMonthStr;

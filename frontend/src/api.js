@@ -40,15 +40,22 @@ export const api = {
   getByCategory: (month) => request(`/expenses/stats/by-category?month=${month}`),
   getTrend: (months = 6) => request(`/expenses/stats/trend?months=${months}`),
 
-  // Thiết lập (thu nhập hàng tháng dùng để phân bổ ngân sách)
-  getSettings: () => request("/settings"),
+  // Thiết lập (thu nhập RIÊNG cho từng tháng, dùng để phân bổ ngân sách)
+  getSettings: (month) => request(`/settings?month=${month}`),
   updateSettings: (data) => request("/settings", { method: "PUT", body: JSON.stringify(data) }),
 
   // Danh mục
-  getCategories: () => request("/categories"),
+  // Truyền "month" để lấy ngân sách RIÊNG của tháng đó; bỏ trống nếu chỉ cần
+  // danh sách danh mục (VD: cho dropdown chọn danh mục khi thêm giao dịch).
+  getCategories: (month) => request(`/categories${month ? `?month=${month}` : ""}`),
   createCategory: (data) =>
     request("/categories", { method: "POST", body: JSON.stringify(data) }),
   updateCategory: (id, data) =>
     request(`/categories/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  updateCategoryBudget: (id, month, amount) =>
+    request(`/categories/${id}/budget`, {
+      method: "PUT",
+      body: JSON.stringify({ month, amount }),
+    }),
   deleteCategory: (id) => request(`/categories/${id}`, { method: "DELETE" }),
 };

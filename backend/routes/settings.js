@@ -3,29 +3,32 @@ const db = require("../db");
 
 const router = express.Router();
 
-// GET /api/settings - hien tai chi co "monthly_income" nhung de mo rong sau nay
-router.get("/", (req, res) => {
-  const rows = db.prepare("SELECT key, value FROM settings").all();
-  const settings = {};
-  for (const row of rows) settings[row.key] = row.value;
+function defaultMonth() {
+  return db.currentMonthStr();
+}
 
-  res.json({
-    monthly_income: Number(settings.monthly_income || 0),
-  });
+// GET /api/settings?month=YYYY-MM - lay thu nhap CUA RIENG thang do
+// (khong con la 1 gia tri dung chung cho moi thang nua)
+router.get("/", (req, res) => {
+  const month = req.query.month || defaultMonth();
+  const row = db.prepare("SELECT amount FROM incomes WHERE month = ?").get(month);
+  res.json({ month, monthly_income: row ? row.amount : 0 });
 });
 
-// PUT /api/settings - cap nhat thu nhap hang thang
+// PUT /api/settings - cap nhat thu nhap cho 1 thang cu the
+// body: { month: 'YYYY-MM', monthly_income: number }
 router.put("/", (req, res) => {
-  const value = String(Number(req.body.monthly_income) || 0);
+  const month = req.body.month || defaultMonth();
+  const amount = Number(req.body.monthly_income) || 0;
 
-  const existing = db.prepare("SELECT key FROM settings WHERE key = ?").get("monthly_income");
+  const existing = db.prepare("SELECT month FROM incomes WHERE month = ?").get(month);
   if (existing) {
-    db.prepare("UPDATE settings SET value = ? WHERE key = ?").run(value, "monthly_income");
+    db.prepare("UPDATE incomes SET amount = ? WHERE month = ?").run(amount, month);
   } else {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("monthly_income", value);
+    db.prepare("INSERT INTO incomes (month, amount) VALUES (?, ?)").run(month, amount);
   }
 
-  res.json({ monthly_income: Number(value) });
+  res.json({ month, monthly_income: amount });
 });
 
 module.exports = router;

@@ -29,7 +29,6 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-foot">
-        Dữ liệu lưu cục bộ trong file SQLite trên máy của bạn — không đồng bộ lên đâu cả.
       </div>
     </aside>
   );

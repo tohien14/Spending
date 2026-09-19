@@ -68,8 +68,11 @@ có đầy đủ lịch sử chi tiêu. Nên định kỳ copy file này ra nơi
   biểu đồ tròn theo danh mục, thanh tiến độ ngân sách từng danh mục, biểu
   đồ xu hướng thu/chi 6 tháng gần nhất
 - Trang **Giao dịch**: danh sách đầy đủ, lọc theo tháng / danh mục / loại
-- Trang **Danh mục**: thêm danh mục mới, đặt ngân sách hàng tháng cho từng
-  danh mục, sửa/xoá danh mục
+- Trang **Danh mục**: nhập **lương / thu nhập riêng cho từng tháng**, đặt
+  ngân sách riêng cho từng tháng ở mỗi danh mục, xem thanh tiến độ đã phân
+  bổ bao nhiêu so với thu nhập, nút "chia đều" thu nhập cho các danh mục.
+  **Mỗi tháng hoàn toàn độc lập** — đổi lương hoặc ngân sách của tháng 10
+  không làm thay đổi số liệu đã lưu của tháng 9.
 
 ## Build bản production cho frontend (tuỳ chọn)
 
@@ -99,3 +102,10 @@ sẵn trong Node.js nên sẽ không còn lỗi này nữa. Nếu bạn vẫn g�
 feature...` khi chạy backend** — đây chỉ là cảnh báo, không phải lỗi. Module
 `node:sqlite` vẫn đang ở trạng thái "experimental" theo cách gọi của
 Node.js nhưng hoạt động ổn định, ứng dụng vẫn chạy bình thường.
+
+**Nếu bạn đã dùng bản cũ (lương/ngân sách dùng chung cho mọi tháng)** —
+lần chạy đầu tiên với code mới, hệ thống sẽ tự động chuyển số liệu cũ đó
+sang cho **tháng hiện tại** (chỉ chạy 1 lần duy nhất), để bạn không mất
+cấu hình đã nhập trước đó. Từ lần đó trở đi, mỗi tháng hoàn toàn độc lập —
+sửa lương hoặc ngân sách của tháng này sẽ không ảnh hưởng đến các tháng
+khác.

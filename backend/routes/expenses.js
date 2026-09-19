@@ -105,8 +105,8 @@ router.get("/stats/summary", (req, res) => {
     .get(`${m}%`);
 
   const budget = db
-    .prepare("SELECT COALESCE(SUM(monthly_budget), 0) AS total FROM categories")
-    .get().total;
+    .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM budgets WHERE month = ?")
+    .get(m).total;
 
   res.json({
     month: m,
@@ -126,15 +126,16 @@ router.get("/stats/by-category", (req, res) => {
 
   const rows = db
     .prepare(
-      `SELECT c.id, c.name, c.icon, c.color, c.monthly_budget,
+      `SELECT c.id, c.name, c.icon, c.color, COALESCE(b.amount, 0) AS monthly_budget,
               COALESCE(SUM(e.amount), 0) AS spent
        FROM categories c
+       LEFT JOIN budgets b ON b.category_id = c.id AND b.month = ?
        LEFT JOIN expenses e
          ON e.category_id = c.id AND e.type = 'expense' AND e.spent_on LIKE ?
        GROUP BY c.id
        ORDER BY spent DESC`
     )
-    .all(`${m}%`);
+    .all(m, `${m}%`);
 
   res.json(rows);
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api.js";
-import { formatVND } from "../utils.js";
+import { formatVND, currentMonth, monthLabel } from "../utils.js";
 import MoneyInput from "../components/MoneyInput.jsx";
 
 const EMOJI_CHOICES = ["🍜", "🚗", "🏠", "🎬", "💊", "🛍️", "🧾", "✳️", "📚", "🐾", "✈️", "🎁"];
@@ -16,6 +16,7 @@ const COLOR_CHOICES = [
 ];
 
 export default function Categories() {
+  const [month, setMonth] = useState(currentMonth());
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -31,12 +32,12 @@ export default function Categories() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [cats, settings] = await Promise.all([api.getCategories(), api.getSettings()]);
+    const [cats, settings] = await Promise.all([api.getCategories(month), api.getSettings(month)]);
     setCategories(cats);
     setIncome(settings.monthly_income || "");
     setIncomeSaved(settings.monthly_income || 0);
     setLoading(false);
-  }, []);
+  }, [month]);
 
   useEffect(() => {
     load();
@@ -51,7 +52,12 @@ export default function Categories() {
   async function saveEdit() {
     setError("");
     try {
-      await api.updateCategory(editingId, draft);
+      await api.updateCategory(editingId, {
+        name: draft.name,
+        icon: draft.icon,
+        color: draft.color,
+      });
+      await api.updateCategoryBudget(editingId, month, Number(draft.monthly_budget) || 0);
       setEditingId(null);
       load();
     } catch (err) {
@@ -60,7 +66,7 @@ export default function Categories() {
   }
 
   async function handleDelete(id) {
-    if (!confirm("Xoá danh mục này?")) return;
+    if (!confirm("Xoá danh mục này? (sẽ xoá luôn ngân sách đã đặt ở mọi tháng)")) return;
     try {
       await api.deleteCategory(id);
       load();
@@ -77,7 +83,7 @@ export default function Categories() {
       return;
     }
     try {
-      await api.createCategory({ ...newCat, monthly_budget: Number(newCat.monthly_budget) || 0 });
+      await api.createCategory({ ...newCat, monthly_budget: Number(newCat.monthly_budget) || 0, month });
       setNewCat({ name: "", icon: "✳️", color: "#E83C91", monthly_budget: "" });
       setShowAdd(false);
       load();
@@ -89,7 +95,7 @@ export default function Categories() {
   async function saveIncome() {
     setSavingIncome(true);
     try {
-      const res = await api.updateSettings({ monthly_income: Number(income) || 0 });
+      const res = await api.updateSettings({ month, monthly_income: Number(income) || 0 });
       setIncomeSaved(res.monthly_income);
     } finally {
       setSavingIncome(false);
@@ -98,11 +104,12 @@ export default function Categories() {
 
   async function splitEvenly() {
     if (!income || categories.length === 0) return;
-    if (!confirm(`Chia đều ${formatVND(income)} cho ${categories.length} danh mục?`)) return;
+    if (!confirm(`Chia đều ${formatVND(income)} cho ${categories.length} danh mục trong ${monthLabel(month)}?`))
+      return;
     setSplitting(true);
     try {
       const each = Math.floor(Number(income) / categories.length);
-      await Promise.all(categories.map((c) => api.updateCategory(c.id, { monthly_budget: each })));
+      await Promise.all(categories.map((c) => api.updateCategoryBudget(c.id, month, each)));
       await load();
     } finally {
       setSplitting(false);
@@ -120,25 +127,34 @@ export default function Categories() {
       <div className="page-header">
         <div>
           <h1>Danh mục</h1>
-          <div className="subtitle">Nhập lương, rồi chia số tiền đó cho từng danh mục chi tiêu</div>
+          <div className="subtitle">
+            Tháng {monthLabel(month).toLowerCase()} 
+          </div>
         </div>
         <div className="header-actions">
+          <input
+            className="input"
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            style={{ width: 160 }}
+          />
           <button className="btn btn-primary" onClick={() => setShowAdd((v) => !v)}>
             {showAdd ? "Đóng" : "+ Thêm danh mục"}
           </button>
         </div>
       </div>
 
-      {/* ---------- Thu nhập & phân bổ ---------- */}
+      {/* ---------- Thu nhập & phân bổ (RIÊNG cho tháng đang chọn) ---------- */}
       <div className="section">
         <div className="section-head">
-          <h2>Thu nhập &amp; phân bổ</h2>
+          <h2>Thu nhập &amp; phân bổ · {monthLabel(month)}</h2>
         </div>
 
         <div className="allocation-box">
           <div className="allocation-income-row">
             <div className="field">
-              <label>Thu nhập hàng tháng (₫)</label>
+              <label>Thu nhập tháng này (₫)</label>
               <MoneyInput value={income} onChange={setIncome} placeholder="VD: 15.000.000" />
             </div>
             <button className="btn" onClick={saveIncome} disabled={savingIncome}>
@@ -181,7 +197,7 @@ export default function Categories() {
                 onClick={splitEvenly}
                 disabled={splitting || categories.length === 0}
               >
-                {splitting ? "Đang chia…" : `Chia đều cho ${categories.length} danh mục`}
+                {splitting ? "Đang chia…" : `Chia đều cho ${categories.length} danh mục (chỉ áp dụng cho ${monthLabel(month).toLowerCase()})`}
               </button>
             </>
           )}
@@ -202,7 +218,7 @@ export default function Categories() {
               />
             </div>
             <div className="field">
-              <label>Ngân sách / tháng (₫)</label>
+              <label>Ngân sách cho {monthLabel(month).toLowerCase()} (₫)</label>
               <MoneyInput
                 value={newCat.monthly_budget}
                 onChange={(v) => setNewCat({ ...newCat, monthly_budget: v })}
@@ -294,7 +310,7 @@ export default function Categories() {
                     {c.icon} {c.name}
                   </span>
                   <span className="cat-manage-budget">
-                    {formatVND(c.monthly_budget)} / tháng
+                    {formatVND(c.monthly_budget)} / {monthLabel(month).toLowerCase()}
                     {incomeSaved > 0 && c.monthly_budget > 0
                       ? ` · ${Math.round((c.monthly_budget / incomeSaved) * 100)}% thu nhập`
                       : ""}
