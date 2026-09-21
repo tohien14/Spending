@@ -12,16 +12,23 @@ export default function Transactions() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [exp, cats] = await Promise.all([
-      api.getExpenses({ month, category: categoryId, type }),
-      api.getCategories(),
-    ]);
-    setExpenses(exp);
-    setCategories(cats);
-    setLoading(false);
+    setError("");
+    try {
+      const [exp, cats] = await Promise.all([
+        api.getExpenses({ month, category: categoryId, type }),
+        api.getCategories(),
+      ]);
+      setExpenses(exp);
+      setCategories(cats);
+    } catch (err) {
+      setError(err.message || "Không kết nối được tới máy chủ API.");
+    } finally {
+      setLoading(false);
+    }
   }, [month, categoryId, type]);
 
   useEffect(() => {
@@ -89,6 +96,14 @@ export default function Transactions() {
       <div className="section">
         {loading ? (
           <p style={{ color: "var(--color-ink-soft)" }}>Đang tải…</p>
+        ) : error ? (
+          <div className="error-box">
+            <strong>Không tải được dữ liệu.</strong>
+            <p>{error}</p>
+            <button className="btn" onClick={load} style={{ marginTop: 10 }}>
+              Thử lại
+            </button>
+          </div>
         ) : expenses.length === 0 ? (
           <div className="empty-state">Không có giao dịch nào khớp bộ lọc hiện tại.</div>
         ) : (

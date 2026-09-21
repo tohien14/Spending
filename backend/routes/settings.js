@@ -1,34 +1,38 @@
 const express = require("express");
-const db = require("../db");
+const { pool, currentMonthStr } = require("../db");
 
 const router = express.Router();
 
-function defaultMonth() {
-  return db.currentMonthStr();
-}
-
 // GET /api/settings?month=YYYY-MM - lay thu nhap CUA RIENG thang do
-// (khong con la 1 gia tri dung chung cho moi thang nua)
-router.get("/", (req, res) => {
-  const month = req.query.month || defaultMonth();
-  const row = db.prepare("SELECT amount FROM incomes WHERE month = ?").get(month);
-  res.json({ month, monthly_income: row ? row.amount : 0 });
+router.get("/", async (req, res) => {
+  try {
+    const month = req.query.month || currentMonthStr();
+    const { rows } = await pool.query("SELECT amount FROM incomes WHERE month = $1", [month]);
+    res.json({ month, monthly_income: rows[0] ? Number(rows[0].amount) : 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Không tải được thu nhập" });
+  }
 });
 
 // PUT /api/settings - cap nhat thu nhap cho 1 thang cu the
 // body: { month: 'YYYY-MM', monthly_income: number }
-router.put("/", (req, res) => {
-  const month = req.body.month || defaultMonth();
-  const amount = Number(req.body.monthly_income) || 0;
+router.put("/", async (req, res) => {
+  try {
+    const month = req.body.month || currentMonthStr();
+    const amount = Number(req.body.monthly_income) || 0;
 
-  const existing = db.prepare("SELECT month FROM incomes WHERE month = ?").get(month);
-  if (existing) {
-    db.prepare("UPDATE incomes SET amount = ? WHERE month = ?").run(amount, month);
-  } else {
-    db.prepare("INSERT INTO incomes (month, amount) VALUES (?, ?)").run(month, amount);
+    await pool.query(
+      `INSERT INTO incomes (month, amount) VALUES ($1, $2)
+       ON CONFLICT (month) DO UPDATE SET amount = EXCLUDED.amount`,
+      [month, amount]
+    );
+
+    res.json({ month, monthly_income: amount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Không thể lưu thu nhập" });
   }
-
-  res.json({ month, monthly_income: amount });
 });
 
 module.exports = router;

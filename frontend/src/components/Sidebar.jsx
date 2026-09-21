@@ -29,6 +29,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-foot">
+        Quản lý bởi ToHin
       </div>
     </aside>
   );

@@ -29,14 +29,21 @@ export default function Categories() {
   const [incomeSaved, setIncomeSaved] = useState(0);
   const [savingIncome, setSavingIncome] = useState(false);
   const [splitting, setSplitting] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [cats, settings] = await Promise.all([api.getCategories(month), api.getSettings(month)]);
-    setCategories(cats);
-    setIncome(settings.monthly_income || "");
-    setIncomeSaved(settings.monthly_income || 0);
-    setLoading(false);
+    setLoadError("");
+    try {
+      const [cats, settings] = await Promise.all([api.getCategories(month), api.getSettings(month)]);
+      setCategories(cats);
+      setIncome(settings.monthly_income || "");
+      setIncomeSaved(settings.monthly_income || 0);
+    } catch (err) {
+      setLoadError(err.message || "Không kết nối được tới máy chủ API.");
+    } finally {
+      setLoading(false);
+    }
   }, [month]);
 
   useEffect(() => {
@@ -128,7 +135,7 @@ export default function Categories() {
         <div>
           <h1>Danh mục</h1>
           <div className="subtitle">
-            Tháng {monthLabel(month).toLowerCase()} 
+            Tháng {monthLabel(month).toLowerCase()}
           </div>
         </div>
         <div className="header-actions">
@@ -280,6 +287,14 @@ export default function Categories() {
         </div>
         {loading ? (
           <p style={{ color: "var(--color-ink-soft)" }}>Đang tải…</p>
+        ) : loadError ? (
+          <div className="error-box">
+            <strong>Không tải được dữ liệu.</strong>
+            <p>{loadError}</p>
+            <button className="btn" onClick={load} style={{ marginTop: 10 }}>
+              Thử lại
+            </button>
+          </div>
         ) : (
           categories.map((c) => (
             <div className="cat-manage-row" key={c.id}>

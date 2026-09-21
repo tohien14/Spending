@@ -15,22 +15,29 @@ export default function Dashboard() {
   const [categories, setCategories] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, cat, tr, exp, allCats] = await Promise.all([
-      api.getSummary(month),
-      api.getByCategory(month),
-      api.getTrend(6),
-      api.getExpenses({ month }),
-      api.getCategories(),
-    ]);
-    setSummary(s);
-    setByCategory(cat);
-    setTrend(tr);
-    setRecent(exp.slice(0, 6));
-    setCategories(allCats);
-    setLoading(false);
+    setError("");
+    try {
+      const [s, cat, tr, exp, allCats] = await Promise.all([
+        api.getSummary(month),
+        api.getByCategory(month),
+        api.getTrend(6),
+        api.getExpenses({ month }),
+        api.getCategories(),
+      ]);
+      setSummary(s);
+      setByCategory(cat);
+      setTrend(tr);
+      setRecent(exp.slice(0, 6));
+      setCategories(allCats);
+    } catch (err) {
+      setError(err.message || "Không kết nối được tới máy chủ API.");
+    } finally {
+      setLoading(false);
+    }
   }, [month]);
 
   useEffect(() => {
@@ -45,6 +52,22 @@ export default function Dashboard() {
 
   if (loading && !summary) {
     return <p style={{ color: "var(--color-ink-soft)" }}>Đang tải…</p>;
+  }
+
+  if (error && !summary) {
+    return (
+      <div className="error-box">
+        <strong>Không tải được dữ liệu.</strong>
+        <p>{error}</p>
+        <p style={{ marginTop: 4 }}>
+          Kiểm tra xem backend đã chạy chưa, và biến <code>VITE_API_URL</code> ở frontend có đang trỏ
+          đúng tới địa chỉ backend không.
+        </p>
+        <button className="btn" onClick={load} style={{ marginTop: 10 }}>
+          Thử lại
+        </button>
+      </div>
+    );
   }
 
   return (

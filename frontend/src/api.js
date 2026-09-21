@@ -1,10 +1,17 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+  } catch {
+    throw new Error(
+      `Không kết nối được tới máy chủ API tại ${BASE_URL}. Kiểm tra backend đã chạy chưa và VITE_API_URL đã đúng chưa.`
+    );
+  }
 
   if (!res.ok) {
     let message = `Lỗi ${res.status}`;
