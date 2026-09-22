@@ -3,14 +3,15 @@ import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { formatVND, formatDate, currentMonth, monthLabel } from "../utils.js";
 import CategoryDonut from "../components/CategoryDonut.jsx";
-import TrendChart from "../components/TrendChart.jsx";
+import DailyTrendChart from "../components/DailyTrendChart.jsx";
 import ExpenseDrawer from "../components/ExpenseDrawer.jsx";
+import LoadingState from "../components/LoadingState.jsx";
 
 export default function Dashboard() {
   const [month, setMonth] = useState(currentMonth());
   const [summary, setSummary] = useState(null);
   const [byCategory, setByCategory] = useState([]);
-  const [trend, setTrend] = useState([]);
+  const [daily, setDaily] = useState([]);
   const [recent, setRecent] = useState([]);
   const [categories, setCategories] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -21,16 +22,16 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
     try {
-      const [s, cat, tr, exp, allCats] = await Promise.all([
+      const [s, cat, dl, exp, allCats] = await Promise.all([
         api.getSummary(month),
         api.getByCategory(month),
-        api.getTrend(6),
+        api.getDaily(month),
         api.getExpenses({ month }),
         api.getCategories(),
       ]);
       setSummary(s);
       setByCategory(cat);
-      setTrend(tr);
+      setDaily(dl);
       setRecent(exp.slice(0, 6));
       setCategories(allCats);
     } catch (err) {
@@ -51,7 +52,7 @@ export default function Dashboard() {
   }
 
   if (loading && !summary) {
-    return <p style={{ color: "var(--color-ink-soft)" }}>Đang tải…</p>;
+    return <LoadingState />;
   }
 
   if (error && !summary) {
@@ -100,6 +101,10 @@ export default function Dashboard() {
         <div className="hero-stat">
           <div className="label">Thu nhập</div>
           <div className="value positive">{formatVND(summary.totalIncome)}</div>
+          <div className="hint">
+            Lương {formatVND(summary.salaryIncome)}
+            {summary.extraIncome > 0 ? ` + thêm ${formatVND(summary.extraIncome)}` : ""}
+          </div>
         </div>
         <div className="hero-stat">
           <div className="label">Số dư trong tháng</div>
@@ -193,9 +198,9 @@ export default function Dashboard() {
 
       <div className="section">
         <div className="section-head">
-          <h2>Xu hướng 6 tháng gần đây</h2>
+          <h2>Nhịp độ chi tiêu trong tháng</h2>
         </div>
-        <TrendChart data={trend} />
+        <DailyTrendChart data={daily} budget={summary.totalBudget} />
       </div>
 
       <ExpenseDrawer

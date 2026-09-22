@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { formatVND, formatDate, currentMonth, monthLabel } from "../utils.js";
 import ExpenseDrawer from "../components/ExpenseDrawer.jsx";
 import BulkAddModal from "../components/BulkAddModal.jsx";
+import LoadingState from "../components/LoadingState.jsx";
 
 export default function Transactions() {
   const [month, setMonth] = useState(currentMonth());
@@ -100,7 +101,7 @@ export default function Transactions() {
 
       <div className="section">
         {loading ? (
-          <p style={{ color: "var(--color-ink-soft)" }}>Đang tải…</p>
+          <LoadingState />
         ) : error ? (
           <div className="error-box">
             <strong>Không tải được dữ liệu.</strong>

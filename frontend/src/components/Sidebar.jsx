@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const links = [
@@ -12,10 +12,10 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
+      <Link to="/" className="sidebar-brand">
         <span className="mark">🌿</span>
         <span className="name">Spending</span>
-      </div>
+      </Link>
 
       <nav className="sidebar-nav">
         {links.map((l) => (

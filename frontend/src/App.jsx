@@ -5,12 +5,17 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Transactions from "./pages/Transactions.jsx";
 import Categories from "./pages/Categories.jsx";
 import Login from "./pages/Login.jsx";
+import LoadingState from "./components/LoadingState.jsx";
 
 export default function App() {
   const { user, checking } = useAuth();
 
   if (checking) {
-    return <div className="app-loading">Đang tải…</div>;
+    return (
+      <div className="app-loading">
+        <LoadingState />
+      </div>
+    );
   }
 
   if (!user) {

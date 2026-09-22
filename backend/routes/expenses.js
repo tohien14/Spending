@@ -205,6 +205,8 @@ router.delete("/:id", async (req, res) => {
 // ---------- THONG KE (deu chi tinh tren du lieu CUA CHINH tai khoan) ----------
 
 // GET /api/expenses/stats/summary?month=YYYY-MM
+// "Thu nhập" = luong da nhap o trang Danh muc (bang incomes) CONG voi cac
+// giao dich loai "income" duoc them rieng trong thang (bang expenses).
 router.get("/stats/summary", async (req, res) => {
   try {
     const m = req.query.month || new Date().toISOString().slice(0, 7);
@@ -212,14 +214,21 @@ router.get("/stats/summary", async (req, res) => {
     const { rows: totalsRows } = await pool.query(
       `SELECT
          COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS "totalExpense",
-         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS "totalIncome",
+         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS "extraIncome",
          COUNT(CASE WHEN type = 'expense' THEN 1 END)::int AS "expenseCount"
        FROM expenses WHERE user_id = $1 AND spent_on LIKE $2`,
       [req.userId, `${m}%`]
     );
     const totals = totalsRows[0];
     const totalExpense = Number(totals.totalExpense);
-    const totalIncome = Number(totals.totalIncome);
+    const extraIncome = Number(totals.extraIncome);
+
+    const { rows: incomeRows } = await pool.query(
+      "SELECT amount FROM incomes WHERE user_id = $1 AND month = $2",
+      [req.userId, m]
+    );
+    const salaryIncome = incomeRows[0] ? Number(incomeRows[0].amount) : 0;
+    const totalIncome = salaryIncome + extraIncome;
 
     const { rows: budgetRows } = await pool.query(
       "SELECT COALESCE(SUM(amount), 0) AS total FROM budgets WHERE user_id = $1 AND month = $2",
@@ -231,6 +240,8 @@ router.get("/stats/summary", async (req, res) => {
       month: m,
       totalExpense,
       totalIncome,
+      salaryIncome,
+      extraIncome,
       balance: totalIncome - totalExpense,
       expenseCount: totals.expenseCount,
       totalBudget: budget,
@@ -270,36 +281,55 @@ router.get("/stats/by-category", async (req, res) => {
   }
 });
 
-// GET /api/expenses/stats/trend?months=6
-router.get("/stats/trend", async (req, res) => {
+// GET /api/expenses/stats/daily?month=YYYY-MM
+// Chi tieu/thu nhap theo TUNG NGAY trong thang, kem so luy ke (cumulative)
+// tinh den ngay do — dung de ve bieu do nhip do chi tieu trong thang.
+router.get("/stats/daily", async (req, res) => {
   try {
-    const months = Number(req.query.months) || 6;
-    const now = new Date();
+    const m = req.query.month || new Date().toISOString().slice(0, 7);
+    const [year, monthNum] = m.split("-").map(Number);
+    const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+    const { rows } = await pool.query(
+      `SELECT spent_on,
+              COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense,
+              COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income
+       FROM expenses
+       WHERE user_id = $1 AND spent_on LIKE $2
+       GROUP BY spent_on`,
+      [req.userId, `${m}%`]
+    );
+
+    const byDate = {};
+    for (const r of rows) {
+      byDate[r.spent_on] = { expense: Number(r.expense), income: Number(r.income) };
+    }
+
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === monthNum;
+    const lastDay = isCurrentMonth ? today.getDate() : daysInMonth;
+
     const result = [];
-
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-      const { rows } = await pool.query(
-        `SELECT
-           COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense,
-           COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income
-         FROM expenses WHERE user_id = $1 AND spent_on LIKE $2`,
-        [req.userId, `${key}%`]
-      );
-
+    let cumulative = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${m}-${String(d).padStart(2, "0")}`;
+      const v = byDate[dateStr] || { expense: 0, income: 0 };
+      cumulative += v.expense;
       result.push({
-        month: key,
-        expense: Number(rows[0].expense),
-        income: Number(rows[0].income),
+        day: d,
+        date: dateStr,
+        expense: v.expense,
+        income: v.income,
+        // Sau ngay hom nay (neu la thang hien tai) chua co du lieu that,
+        // de null de bieu do khong ve duong luy ke lao xuong/thang bang 0.
+        cumulative: !isCurrentMonth || d <= lastDay ? cumulative : null,
       });
     }
 
     res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Không tải được xu hướng chi tiêu" });
+    res.status(500).json({ error: "Không tải được chi tiêu theo ngày" });
   }
 });
 

@@ -32,7 +32,7 @@ export default function Login() {
           <span className="mark">🌿</span>
           <span className="name">Spending</span>
         </div>
-        <p className="login-subtitle">Đăng nhập để xem chi tiêu</p>
+        <p className="login-subtitle">Đăng nhập để xem chi tiêu của bạn</p>
 
         <div className="field">
           <label>Tên đăng nhập</label>
@@ -61,6 +61,7 @@ export default function Login() {
           {loading ? "Đang đăng nhập…" : "Đăng nhập"}
         </button>
 
+        <p className="login-hint">Chào mừng đến với Spending!</p>
       </form>
     </div>
   );

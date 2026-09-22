@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "../api.js";
 import { formatVND, currentMonth, monthLabel } from "../utils.js";
 import MoneyInput from "../components/MoneyInput.jsx";
+import LoadingState from "../components/LoadingState.jsx";
 
 const EMOJI_CHOICES = ["🍜", "🚗", "🏠", "🎬", "💊", "🛍️", "🧾", "✳️", "📚", "🐾", "✈️", "🎁"];
 const COLOR_CHOICES = [
@@ -27,6 +28,7 @@ export default function Categories() {
 
   const [income, setIncome] = useState("");
   const [incomeSaved, setIncomeSaved] = useState(0);
+  const [editingIncome, setEditingIncome] = useState(true);
   const [savingIncome, setSavingIncome] = useState(false);
   const [splitting, setSplitting] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -39,6 +41,8 @@ export default function Categories() {
       setCategories(cats);
       setIncome(settings.monthly_income || "");
       setIncomeSaved(settings.monthly_income || 0);
+      // Thang chua nhap luong -> hien o dang nhap; thang da co luong -> hien o dang xem
+      setEditingIncome(!settings.monthly_income);
     } catch (err) {
       setLoadError(err.message || "Không kết nối được tới máy chủ API.");
     } finally {
@@ -104,9 +108,15 @@ export default function Categories() {
     try {
       const res = await api.updateSettings({ month, monthly_income: Number(income) || 0 });
       setIncomeSaved(res.monthly_income);
+      setEditingIncome(false);
     } finally {
       setSavingIncome(false);
     }
+  }
+
+  function cancelEditIncome() {
+    setIncome(incomeSaved);
+    setEditingIncome(false);
   }
 
   async function splitEvenly() {
@@ -159,19 +169,36 @@ export default function Categories() {
         </div>
 
         <div className="allocation-box">
-          <div className="allocation-income-row">
-            <div className="field">
-              <label>Thu nhập tháng này (₫)</label>
-              <MoneyInput value={income} onChange={setIncome} placeholder="VD: 15.000.000" />
+          {editingIncome ? (
+            <div className="allocation-income-row">
+              <div className="field">
+                <label>Thu nhập tháng này (₫)</label>
+                <MoneyInput value={income} onChange={setIncome} placeholder="VD: 15.000.000" />
+              </div>
+              <button className="btn btn-primary" onClick={saveIncome} disabled={savingIncome}>
+                {savingIncome ? "Đang lưu…" : "Lưu thu nhập"}
+              </button>
+              {incomeSaved > 0 && (
+                <button type="button" className="btn" onClick={cancelEditIncome}>
+                  Huỷ
+                </button>
+              )}
             </div>
-            <button className="btn" onClick={saveIncome} disabled={savingIncome}>
-              {savingIncome ? "Đang lưu…" : "Lưu thu nhập"}
-            </button>
-          </div>
+          ) : (
+            <div className="allocation-income-display">
+              <div>
+                <div className="label">Thu nhập tháng này</div>
+                <div className="income-amount">{formatVND(incomeSaved)}</div>
+              </div>
+              <button type="button" className="btn" onClick={() => setEditingIncome(true)}>
+                ✎ Sửa
+              </button>
+            </div>
+          )}
 
           {incomeSaved > 0 && (
             <>
-              <div className="category-bar-top" style={{ marginTop: 4 }}>
+              <div className="category-bar-top" style={{ marginTop: 16 }}>
                 <span className="cat-name">Đã phân bổ vào danh mục</span>
                 <span className="cat-amounts">
                   {formatVND(totalAllocated)} / {formatVND(incomeSaved)}
@@ -286,7 +313,7 @@ export default function Categories() {
           <h2>Danh sách danh mục</h2>
         </div>
         {loading ? (
-          <p style={{ color: "var(--color-ink-soft)" }}>Đang tải…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="error-box">
             <strong>Không tải được dữ liệu.</strong>

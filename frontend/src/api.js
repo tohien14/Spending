@@ -89,7 +89,7 @@ export const api = {
   // Thống kê
   getSummary: (month) => request(`/expenses/stats/summary?month=${month}`),
   getByCategory: (month) => request(`/expenses/stats/by-category?month=${month}`),
-  getTrend: (months = 6) => request(`/expenses/stats/trend?months=${months}`),
+  getDaily: (month) => request(`/expenses/stats/daily?month=${month}`),
 
   // Thiết lập (thu nhập RIÊNG cho từng tháng, dùng để phân bổ ngân sách)
   getSettings: (month) => request(`/settings?month=${month}`),

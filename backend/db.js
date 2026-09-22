@@ -147,6 +147,43 @@ async function seedDefaultCategoriesForUser(userId, month) {
   }
 }
 
+// ---------- Tu dong xoa du lieu cu (giam dung luong database ve lau dai) ----------
+
+// So thang duoc GIU LAI, tinh ca thang hien tai. Mac dinh 3 = giu thang
+// nay + 2 thang truoc do, xoa tu thang thu 4 tro ve truoc. Vi du dang o
+// thang 12: giu 10/11/12, xoa het du lieu tu thang 9 tro ve truoc.
+const RETENTION_MONTHS = Math.max(1, Number(process.env.RETENTION_MONTHS) || 3);
+
+function monthsAgoStr(n) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+async function cleanupOldData() {
+  // Thang cu nhat duoc GIU LAI — moi thu tu thang truoc do se bi xoa
+  const cutoffMonth = monthsAgoStr(RETENTION_MONTHS - 1);
+  const cutoffDate = `${cutoffMonth}-01`;
+
+  try {
+    // spent_on/month deu la TEXT dinh dang 'YYYY-MM-DD'/'YYYY-MM' nen so
+    // sanh chuoi '<' cho ra dung thu tu thoi gian.
+    const expResult = await pool.query("DELETE FROM expenses WHERE spent_on < $1", [cutoffDate]);
+    const budgetResult = await pool.query("DELETE FROM budgets WHERE month < $1", [cutoffMonth]);
+    const incomeResult = await pool.query("DELETE FROM incomes WHERE month < $1", [cutoffMonth]);
+
+    const total = expResult.rowCount + budgetResult.rowCount + incomeResult.rowCount;
+    if (total > 0) {
+      console.log(
+        `🧹 Tự động dọn dữ liệu cũ hơn ${RETENTION_MONTHS} tháng (trước ${cutoffMonth}): ` +
+          `${expResult.rowCount} giao dịch, ${budgetResult.rowCount} ngân sách, ${incomeResult.rowCount} thu nhập đã bị xoá.`
+      );
+    }
+  } catch (err) {
+    console.error("❌ Lỗi khi tự động dọn dữ liệu cũ:", err.message);
+  }
+}
+
 async function init() {
   // 1) Bang tai khoan
   await pool.query(`
@@ -265,10 +302,17 @@ async function init() {
       await seedDefaultCategoriesForUser(u.id, thisMonth);
     }
   }
+
+  // 9) Don du lieu qua han ngay khi khoi dong (VD deploy lai/thuc day sau
+  //    khi ngu tren Render), sau do lap lai dinh ky de bat ca truong hop
+  //    server chay lien tuc lau ngay khong restart.
+  await cleanupOldData();
 }
 
 module.exports = {
   pool,
   currentMonthStr,
-  ready: init(),
+  ready: init().then(() => {
+    setInterval(cleanupOldData, 24 * 60 * 60 * 1000);
+  }),
 };
