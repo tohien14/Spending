@@ -4,7 +4,9 @@ const express = require("express");
 const cors = require("cors");
 
 const { ready } = require("./db"); // ready: Promise khoi tao + seed database
+const { authMiddleware } = require("./middleware/auth");
 
+const authRouter = require("./routes/auth");
 const expensesRouter = require("./routes/expenses");
 const categoriesRouter = require("./routes/categories");
 const settingsRouter = require("./routes/settings");
@@ -26,9 +28,13 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use("/api/expenses", expensesRouter);
-app.use("/api/categories", categoriesRouter);
-app.use("/api/settings", settingsRouter);
+// /api/auth khong yeu cau dang nhap (chinh la noi de dang nhap).
+// Cac route con lai deu yeu cau da dang nhap (authMiddleware) va chi thao
+// tac tren du lieu CUA CHINH tai khoan dang dang nhap.
+app.use("/api/auth", authRouter);
+app.use("/api/expenses", authMiddleware, expensesRouter);
+app.use("/api/categories", authMiddleware, categoriesRouter);
+app.use("/api/settings", authMiddleware, settingsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Không tìm thấy đường dẫn API" });

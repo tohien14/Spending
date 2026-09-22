@@ -1,13 +1,14 @@
 // db.js
-// Ket noi PostgreSQL qua bien moi truong DATABASE_URL (bat buoc phai co).
-// Khac voi SQLite truoc day, PostgreSQL la mot database server that su,
-// nen ban can 1 chuoi ket noi toi 1 server Postgres dang chay o dau do —
-// xem README.md de biet cach lay mien phi (Neon, Supabase, Render Postgres...).
+// Ket noi PostgreSQL qua bien moi truong DATABASE_URL.
 //
-// Toan bo cau lenh trong file nay va cac route deu la BAT DONG BO (Promise),
-// khac voi node:sqlite/better-sqlite3 truoc day la DONG BO.
+// Ban nay ho tro NHIEU TAI KHOAN (moi tai khoan co du lieu rieng, khong ai
+// thay duoc du lieu cua nguoi kia). Neu database cua ban dang chay o phien
+// ban CU (chi 1 nguoi dung, chua co bang "users"), code duoi day se TU
+// DONG nang cap schema va gan toan bo du lieu cu cho tai khoan DAU TIEN
+// duoc tao (mac dinh la "hien") — khong lam mat du lieu ban da nhap.
 
 const { Pool } = require("pg");
+const bcrypt = require("bcryptjs");
 
 if (!process.env.DATABASE_URL) {
   console.error(
@@ -18,8 +19,6 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// Cac dich vu Postgres mien phi (Neon, Supabase, Render...) deu yeu cau SSL.
-// Chi tat SSL khi ro rang dang chay Postgres local (localhost/127.0.0.1).
 const isLocal = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
 
 const pool = new Pool({
@@ -36,11 +35,136 @@ function currentMonthStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// Danh sach 2 tai khoan tinh. Doc tu bien moi truong neu co, de ban co the
+// doi mat khau ma khong can sua code; neu khong co bien moi truong thi
+// dung gia tri mac dinh nay.
+const STATIC_USERS = [
+  {
+    username: process.env.USER1_USERNAME || "hien",
+    password: process.env.USER1_PASSWORD || "1234&",
+    display_name: process.env.USER1_DISPLAY_NAME || "Hiền",
+  },
+  {
+    username: process.env.USER2_USERNAME || "duc",
+    password: process.env.USER2_PASSWORD || "1234@",
+    display_name: process.env.USER2_DISPLAY_NAME || "Đức",
+  },
+];
+
+const DEFAULT_CATEGORIES = [
+  ["Ăn uống", "🍜", "#E83C91", 3000000],
+  ["Di chuyển", "🚗", "#43334C", 800000],
+  ["Nhà ở", "🏠", "#8E2F63", 5000000],
+  ["Giải trí", "🎬", "#FF8FB7", 500000],
+  ["Sức khỏe", "💊", "#7A6B94", 500000],
+  ["Mua sắm", "🛍️", "#C2447B", 1000000],
+  ["Hóa đơn", "🧾", "#B98CA6", 1500000],
+  ["Khác", "✳️", "#F2A6C6", 500000],
+];
+
+async function columnExists(table, column) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`,
+    [table, column]
+  );
+  return rows.length > 0;
+}
+
+async function ensureUserIdColumn(table) {
+  if (!(await columnExists(table, "user_id"))) {
+    await pool.query(
+      `ALTER TABLE ${table} ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`
+    );
+  }
+}
+
+async function backfillUserId(table, userId) {
+  await pool.query(`UPDATE ${table} SET user_id = $1 WHERE user_id IS NULL`, [userId]);
+}
+
+async function enforceUserIdNotNull(table) {
+  await pool.query(`ALTER TABLE ${table} ALTER COLUMN user_id SET NOT NULL`);
+}
+
+// Danh muc truoc day la UNIQUE(name) toan cuc — gio can UNIQUE(user_id, name)
+// de 2 tai khoan cung duoc dat ten danh muc trung nhau (vd ca 2 deu co "Ăn uống").
+async function fixCategoriesUniqueConstraint() {
+  const { rows } = await pool.query(
+    `SELECT conname FROM pg_constraint WHERE conrelid = 'categories'::regclass AND contype = 'u'`
+  );
+  if (rows.some((r) => r.conname === "categories_user_id_name_key")) return;
+
+  for (const r of rows) {
+    await pool.query(`ALTER TABLE categories DROP CONSTRAINT "${r.conname}"`);
+  }
+  await pool.query(`ALTER TABLE categories ADD CONSTRAINT categories_user_id_name_key UNIQUE (user_id, name)`);
+}
+
+async function getPrimaryKeyColumns(table) {
+  const { rows } = await pool.query(
+    `SELECT a.attname
+     FROM pg_constraint c
+     JOIN unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord) ON true
+     JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+     WHERE c.conrelid = $1::regclass AND c.contype = 'p'
+     ORDER BY k.ord`,
+    [table]
+  );
+  return rows.map((r) => r.attname);
+}
+
+// incomes truoc day co khoa chinh la (month) — gio can (user_id, month)
+async function fixIncomesPrimaryKey() {
+  const cols = await getPrimaryKeyColumns("incomes");
+  if (cols.length === 2 && cols[0] === "user_id" && cols[1] === "month") return;
+
+  await pool.query(`ALTER TABLE incomes DROP CONSTRAINT IF EXISTS incomes_pkey`);
+  await pool.query(`ALTER TABLE incomes ADD PRIMARY KEY (user_id, month)`);
+}
+
+// budgets truoc day co khoa chinh la (month, category_id) — gio can them user_id
+async function fixBudgetsPrimaryKey() {
+  const cols = await getPrimaryKeyColumns("budgets");
+  if (cols.length === 3 && cols[0] === "user_id" && cols[1] === "month" && cols[2] === "category_id") return;
+
+  await pool.query(`ALTER TABLE budgets DROP CONSTRAINT IF EXISTS budgets_pkey`);
+  await pool.query(`ALTER TABLE budgets ADD PRIMARY KEY (user_id, month, category_id)`);
+}
+
+async function seedDefaultCategoriesForUser(userId, month) {
+  for (const [name, icon, color, budget] of DEFAULT_CATEGORIES) {
+    const { rows } = await pool.query(
+      "INSERT INTO categories (user_id, name, icon, color) VALUES ($1, $2, $3, $4) RETURNING id",
+      [userId, name, icon, color]
+    );
+    if (budget > 0) {
+      await pool.query(
+        `INSERT INTO budgets (user_id, month, category_id, amount) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, month, category_id) DO NOTHING`,
+        [userId, month, rows[0].id, budget]
+      );
+    }
+  }
+}
+
 async function init() {
+  // 1) Bang tai khoan
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL
+    );
+  `);
+
+  // 2) Cac bang du lieu chinh (tao moi neu chua co — giu nguyen dinh dang
+  //    CU, vi cot user_id se duoc them o buoc migrate ben duoi cho ca
+  //    truong hop bang moi tinh lan va bang da co tu truoc)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
       icon TEXT NOT NULL DEFAULT '💰',
       color TEXT NOT NULL DEFAULT '#3D5A50',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -51,58 +175,94 @@ async function init() {
       amount DOUBLE PRECISION NOT NULL,
       category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
       note TEXT DEFAULT '',
-      spent_on TEXT NOT NULL,               -- 'YYYY-MM-DD' (giu la TEXT, khong dung DATE,
-                                             -- de tranh driver tra ve object Date lam lech
-                                             -- dinh dang ma frontend dang doc)
-      type TEXT NOT NULL DEFAULT 'expense', -- 'expense' | 'income'
+      spent_on TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'expense',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE INDEX IF NOT EXISTS idx_expenses_spent_on ON expenses(spent_on);
     CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id);
 
-    -- Thu nhap RIENG cho tung thang
     CREATE TABLE IF NOT EXISTS incomes (
-      month TEXT PRIMARY KEY,   -- 'YYYY-MM'
+      month TEXT NOT NULL,
       amount DOUBLE PRECISION NOT NULL DEFAULT 0
     );
 
-    -- Ngan sach moi danh muc cung RIENG cho tung thang
     CREATE TABLE IF NOT EXISTS budgets (
-      month TEXT NOT NULL,      -- 'YYYY-MM'
+      month TEXT NOT NULL,
       category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-      amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-      PRIMARY KEY (month, category_id)
+      amount DOUBLE PRECISION NOT NULL DEFAULT 0
     );
   `);
 
-  // Seed danh muc mac dinh neu database dang trong (lan chay dau tien)
-  const { rows: countRows } = await pool.query("SELECT COUNT(*)::int AS c FROM categories");
-  if (countRows[0].c === 0) {
-    const defaults = [
-      ["Ăn uống", "🍜", "#E83C91", 3000000],
-      ["Di chuyển", "🚗", "#43334C", 800000],
-      ["Nhà ở", "🏠", "#8E2F63", 5000000],
-      ["Giải trí", "🎬", "#FF8FB7", 500000],
-      ["Sức khỏe", "💊", "#7A6B94", 500000],
-      ["Mua sắm", "🛍️", "#C2447B", 1000000],
-      ["Hóa đơn", "🧾", "#B98CA6", 1500000],
-      ["Khác", "✳️", "#F2A6C6", 500000],
-    ];
-    const thisMonth = currentMonthStr();
-
-    for (const [name, icon, color, budget] of defaults) {
-      const { rows } = await pool.query(
-        "INSERT INTO categories (name, icon, color) VALUES ($1, $2, $3) RETURNING id",
-        [name, icon, color]
+  // 3) Seed 2 tai khoan tinh neu chua co tai khoan nao
+  const { rows: userCountRows } = await pool.query("SELECT COUNT(*)::int AS c FROM users");
+  const isFirstEverSetup = userCountRows[0].c === 0;
+  if (isFirstEverSetup) {
+    for (const u of STATIC_USERS) {
+      const hash = await bcrypt.hash(u.password, 10);
+      await pool.query(
+        "INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3)",
+        [u.username, hash, u.display_name]
       );
-      if (budget > 0) {
+    }
+  } else {
+    // Dam bao ca 2 tai khoan tinh cau hinh trong .env deu ton tai (vd ban
+    // vua them 1 tai khoan moi vao STATIC_USERS sau khi da chay he thong
+    // truoc do). Khong dong ho mat khau cua tai khoan da ton tai san.
+    for (const u of STATIC_USERS) {
+      const { rows } = await pool.query("SELECT id FROM users WHERE username = $1", [u.username]);
+      if (rows.length === 0) {
+        const hash = await bcrypt.hash(u.password, 10);
         await pool.query(
-          `INSERT INTO budgets (month, category_id, amount) VALUES ($1, $2, $3)
-           ON CONFLICT (month, category_id) DO NOTHING`,
-          [thisMonth, rows[0].id, budget]
+          "INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3)",
+          [u.username, hash, u.display_name]
         );
       }
+    }
+  }
+
+  // 4) Them cot user_id vao 4 bang du lieu (an toan khi chay lai nhieu lan)
+  for (const table of ["categories", "expenses", "incomes", "budgets"]) {
+    await ensureUserIdColumn(table);
+  }
+
+  // 5) Neu day la database TU PHIEN BAN CU (co du lieu nhung chua gan
+  //    user_id), gan toan bo du lieu cu do cho TAI KHOAN DAU TIEN trong
+  //    danh sach STATIC_USERS (mac dinh la "hien") — khong mat du lieu.
+  const { rows: firstUserRows } = await pool.query(
+    "SELECT id FROM users WHERE username = $1",
+    [STATIC_USERS[0].username]
+  );
+  const firstUserId = firstUserRows[0]?.id;
+  if (firstUserId) {
+    for (const table of ["categories", "expenses", "incomes", "budgets"]) {
+      await backfillUserId(table, firstUserId);
+    }
+  }
+
+  // 6) Bat buoc user_id khong duoc rong tu day tro di
+  for (const table of ["categories", "expenses", "incomes", "budgets"]) {
+    await enforceUserIdNotNull(table);
+  }
+
+  // 7) Sua lai cac rang buoc khoa (unique/primary key) cho dung voi mo hinh
+  //    nhieu tai khoan
+  await fixCategoriesUniqueConstraint();
+  await fixIncomesPrimaryKey();
+  await fixBudgetsPrimaryKey();
+
+  // 8) Voi tai khoan nao CHUA co danh muc nao (vd tai khoan moi tinh vua
+  //    tao lan dau), seed san 8 danh muc mac dinh cho tai khoan do
+  const thisMonth = currentMonthStr();
+  const { rows: allUsers } = await pool.query("SELECT id, username FROM users");
+  for (const u of allUsers) {
+    const { rows: catCount } = await pool.query(
+      "SELECT COUNT(*)::int AS c FROM categories WHERE user_id = $1",
+      [u.id]
+    );
+    if (catCount[0].c === 0) {
+      await seedDefaultCategoriesForUser(u.id, thisMonth);
     }
   }
 }

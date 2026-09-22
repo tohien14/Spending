@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "../api.js";
 import { formatVND, formatDate, currentMonth, monthLabel } from "../utils.js";
 import ExpenseDrawer from "../components/ExpenseDrawer.jsx";
+import BulkAddModal from "../components/BulkAddModal.jsx";
 
 export default function Transactions() {
   const [month, setMonth] = useState(currentMonth());
@@ -10,6 +11,7 @@ export default function Transactions() {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,6 +66,9 @@ export default function Transactions() {
           <div className="subtitle">{monthLabel(month)} · {expenses.length} giao dịch</div>
         </div>
         <div className="header-actions">
+          <button className="btn" onClick={() => setBulkOpen(true)}>
+            + Thêm nhiều giao dịch
+          </button>
           <button className="btn btn-primary" onClick={openAdd}>
             + Thêm giao dịch
           </button>
@@ -163,6 +168,13 @@ export default function Transactions() {
         }}
         categories={categories}
         editing={editing}
+      />
+
+      <BulkAddModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        onSaved={() => load()}
+        categories={categories}
       />
     </>
   );

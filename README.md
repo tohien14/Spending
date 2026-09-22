@@ -33,7 +33,7 @@ của bạn, bạn chỉ cần 1 chuỗi kết nối):
    postgres://user:password@ep-xyz-123.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
    ```
 4. Trong thư mục `backend`, copy file `.env.example` thành `.env`, dán
-   chuỗi kết nối đó vào biến `.`.
+   chuỗi kết nối đó vào biến `DATABASE_URL`.
 
 Dùng đúng 1 database này cho cả lúc chạy ở máy bạn (local) lẫn khi deploy
 online — dữ liệu sẽ đồng nhất giữa 2 nơi.
@@ -76,6 +76,47 @@ duyệt để sử dụng ứng dụng.
 > Nếu bạn đổi cổng (port) của backend, hãy copy `frontend/.env.example`
 > thành `frontend/.env` và sửa giá trị `VITE_API_URL` cho khớp.
 
+## Đăng nhập & tài khoản
+
+Ứng dụng hỗ trợ **2 tài khoản độc lập hoàn toàn** — mỗi người đăng nhập
+riêng, dữ liệu (giao dịch, danh mục, ngân sách, thu nhập) của người này
+**không ai khác xem được**, kể cả người dùng chung 1 database.
+
+Tài khoản mặc định (dùng được ngay, không cần cấu hình gì thêm):
+
+| Tên đăng nhập | Mật khẩu | Hiển thị |
+|---|---|---|
+| `hien` | `1234&` | Hiền |
+| `duc` | `1234@` | Đức |
+
+**Muốn đổi tên đăng nhập/mật khẩu/tên hiển thị?** Mở `backend/.env`, thêm
+các dòng (xem đầy đủ trong `.env.example`):
+
+```
+USER1_USERNAME=hien
+USER1_PASSWORD=mat-khau-moi-cua-ban
+USER1_DISPLAY_NAME=Hiền
+
+USER2_USERNAME=duc
+USER2_PASSWORD=mat-khau-moi-cua-ban
+USER2_DISPLAY_NAME=Đức
+```
+
+⚠️ Các biến này **chỉ có tác dụng ở lần chạy đầu tiên** — tức là lúc tài
+khoản được tạo ra trong database. Nếu tài khoản đã tồn tại rồi (bạn đã
+chạy `npm run dev` ít nhất 1 lần), đổi biến môi trường sau đó sẽ không tự
+đổi mật khẩu tài khoản cũ. Cách đổi mật khẩu cho tài khoản đã tồn tại: xoá
+dòng tương ứng trong bảng `users` của database rồi khởi động lại backend
+để nó tạo lại tài khoản đó với mật khẩu mới (dữ liệu chi tiêu của tài
+khoản đó vẫn giữ nguyên vì được liên kết theo `user_id`, không theo tên
+đăng nhập) — nếu cần hỗ trợ, cứ nhắn lại.
+
+**Nếu bạn đang nâng cấp từ bản 1-người-dùng cũ (đã có sẵn dữ liệu)** —
+không cần làm gì cả. Lần chạy đầu tiên với bản mới, hệ thống tự động gán
+toàn bộ dữ liệu cũ đó cho tài khoản **đầu tiên** trong danh sách (mặc định
+là `hien`) — không mất dữ liệu, tài khoản `duc` sẽ bắt đầu với dữ liệu
+trống (8 danh mục mặc định).
+
 ## Sử dụng hằng ngày
 
 Sau khi cài đặt xong lần đầu, mỗi lần dùng bạn chỉ cần mở 2 terminal và chạy
@@ -95,7 +136,17 @@ pg_dump "chuoi-ket-noi-DATABASE_URL-cua-ban" > backup.sql
 
 ## Tính năng
 
+- **Đăng nhập 2 tài khoản độc lập** — mỗi người có dữ liệu chi tiêu hoàn
+  toàn riêng, không ai thấy được dữ liệu của người kia (xem mục "Đăng nhập
+  & tài khoản" ở trên)
 - Thêm / sửa / xoá giao dịch (chi tiêu hoặc thu nhập), theo ngày, danh mục, ghi chú
+- **Thêm nhiều giao dịch cùng lúc**: ở trang Giao dịch, bấm "+ Thêm nhiều
+  giao dịch" để mở bảng nhập nhiều dòng một lần (ngày, loại, danh mục, số
+  tiền, ghi chú mỗi dòng riêng), bấm "+ Thêm dòng" để thêm dòng trống, rồi
+  "Lưu tất cả" để lưu một lần. Nếu có dòng nào bị lỗi (thiếu số tiền, sai
+  danh mục...), hệ thống báo rõ lỗi ở dòng thứ mấy và **không lưu bất kỳ
+  dòng nào** cho đến khi bạn sửa đúng hết — tránh tình trạng lưu sót nửa
+  chừng.
 - Trang **Tổng quan**: tổng chi/thu trong tháng, số dư, ngân sách còn lại,
   biểu đồ tròn theo danh mục, thanh tiến độ ngân sách từng danh mục, biểu
   đồ xu hướng thu/chi 6 tháng gần nhất
@@ -139,6 +190,10 @@ nên Neon/Supabase là lựa chọn bền hơn cho dùng lâu dài miễn phí.)
   ```
   DATABASE_URL = <chuỗi kết nối Postgres của bạn>
   ```
+  Nếu muốn đổi tên đăng nhập/mật khẩu mặc định khỏi tài khoản mẫu, thêm
+  luôn các biến `USER1_USERNAME`, `USER1_PASSWORD`, `USER2_USERNAME`,
+  `USER2_PASSWORD`, `JWT_SECRET`... như mô tả ở mục "Đăng nhập & tài
+  khoản" — chỉ áp dụng cho lần deploy đầu tiên (lúc tài khoản được tạo).
 - Sau khi deploy xong, bạn sẽ có 1 địa chỉ dạng
   `https://ten-backend-cua-ban.onrender.com`. Mở
   `https://ten-backend-cua-ban.onrender.com/api/health` để kiểm tra — thấy
@@ -196,3 +251,15 @@ Postgres được (2 loại cơ sở dữ liệu khác nhau). Ứng dụng bản
 bắt đầu với dữ liệu trống (chỉ có 8 danh mục mặc định). Nếu bạn cần mang
 dữ liệu cũ từ SQLite sang, cứ nhắn lại để được hỗ trợ viết 1 script chuyển
 đổi riêng.
+
+**Đăng nhập báo "Sai tên đăng nhập hoặc mật khẩu"** — kiểm tra lại đúng
+tài khoản mặc định (`hien`/`1234&` hoặc `duc`/`1234@`), phân biệt hoa
+thường ở mật khẩu (tên đăng nhập thì không phân biệt hoa thường). Nếu bạn
+đã đổi qua biến môi trường, nhớ là biến đó **chỉ áp dụng lúc tài khoản
+được tạo lần đầu** (xem mục "Đăng nhập & tài khoản").
+
+**Trang tự động quay về màn hình Đăng nhập dù vừa đăng nhập xong** —
+thường do 2 lý do: (1) `JWT_SECRET` đổi giữa các lần chạy backend (mỗi lần
+đổi sẽ làm mọi token cũ hết hiệu lực, phải đăng nhập lại — đây là hành vi
+bình thường, không phải lỗi); (2) đồng hồ hệ thống trên máy chủ sai giờ,
+khiến token bị coi là hết hạn ngay lập tức.

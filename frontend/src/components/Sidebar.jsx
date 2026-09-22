@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const links = [
   { to: "/", label: "Tổng quan", icon: "🌾", end: true },
@@ -7,6 +8,8 @@ const links = [
 ];
 
 export default function Sidebar() {
+  const { user, logout } = useAuth();
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -27,6 +30,13 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <div className="sidebar-user">
+        <div className="sidebar-user-name">👤 {user?.display_name || user?.username}</div>
+        <button className="sidebar-logout" onClick={logout}>
+          Đăng xuất
+        </button>
+      </div>
 
       <div className="sidebar-foot">
         Quản lý bởi ToHin

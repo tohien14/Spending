@@ -1,16 +1,53 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const TOKEN_KEY = "emgr_token";
+
+// Token duoc giu trong 1 bien module-scope (khong dung React state o day),
+// va dong bo voi localStorage de con nguyen sau khi tai lai trang.
+let authToken = localStorage.getItem(TOKEN_KEY) || "";
+let onUnauthorized = null;
+
+export function setAuthToken(token) {
+  authToken = token || "";
+  if (authToken) localStorage.setItem(TOKEN_KEY, authToken);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getAuthToken() {
+  return authToken;
+}
+
+// AuthContext se dang ky 1 ham o day de duoc goi moi khi API tra ve 401
+// (vd token het han) — dung de tu dong dang xuat, dua ve man hinh dang nhap.
+export function setUnauthorizedHandler(fn) {
+  onUnauthorized = fn;
+}
 
 async function request(path, options = {}) {
   let res;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
       ...options,
     });
   } catch {
     throw new Error(
       `Không kết nối được tới máy chủ API tại ${BASE_URL}. Kiểm tra backend đã chạy chưa và VITE_API_URL đã đúng chưa.`
     );
+  }
+
+  if (res.status === 401) {
+    let message = "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại";
+    try {
+      const body = await res.json();
+      if (body?.error) message = body.error;
+    } catch {
+      // giữ nguyên message mặc định
+    }
+    if (onUnauthorized) onUnauthorized();
+    throw new Error(message);
   }
 
   if (!res.ok) {
@@ -29,6 +66,11 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  // Đăng nhập / phiên làm việc
+  login: (username, password) =>
+    request("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  me: () => request("/auth/me"),
+
   // Giao dịch
   getExpenses: (params = {}) => {
     const qs = new URLSearchParams(
@@ -38,6 +80,8 @@ export const api = {
   },
   createExpense: (data) =>
     request("/expenses", { method: "POST", body: JSON.stringify(data) }),
+  createExpensesBulk: (items) =>
+    request("/expenses/bulk", { method: "POST", body: JSON.stringify({ items }) }),
   updateExpense: (id, data) =>
     request(`/expenses/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteExpense: (id) => request(`/expenses/${id}`, { method: "DELETE" }),
