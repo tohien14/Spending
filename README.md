@@ -164,8 +164,7 @@ pg_dump "chuoi-ket-noi-DATABASE_URL-cua-ban" > backup.sql
 - Trang **Tổng quan**: tổng chi/thu trong tháng, số dư, ngân sách còn lại,
   biểu đồ tròn theo danh mục, thanh tiến độ ngân sách từng danh mục, biểu
   đồ **nhịp độ chi tiêu trong tháng** (chi từng ngày + đường luỹ kế so với
-  vạch ngân sách, thay cho biểu đồ 6 tháng cũ — hợp lý hơn vì dữ liệu giờ
-  chỉ giữ tối đa 3 tháng, xem mục "Tự động xoá dữ liệu cũ" bên dưới)
+  vạch ngân sách)
 - Trang **Giao dịch**: danh sách đầy đủ, lọc theo tháng / danh mục / loại
 - Trang **Danh mục**: nhập **lương / thu nhập riêng cho từng tháng**, đặt
   ngân sách riêng cho từng tháng ở mỗi danh mục, xem thanh tiến độ đã phân
@@ -176,25 +175,6 @@ pg_dump "chuoi-ket-noi-DATABASE_URL-cua-ban" > backup.sql
   ô nhập trừ khi bạn bấm sửa.
 - Bấm vào logo "Spending" ở góc trên sidebar để quay về trang Tổng quan
   từ bất kỳ đâu trong app.
-
-## Tự động xoá dữ liệu cũ
-
-Để database không phình to mãi theo thời gian, ứng dụng **tự động xoá
-vĩnh viễn** dữ liệu cũ hơn một khoảng thời gian nhất định — mặc định **giữ
-lại 3 tháng** (tháng hiện tại + 2 tháng trước), xoá từ tháng thứ 4 trở về
-trước. Ví dụ: dữ liệu tháng 9 sẽ bị xoá khi hệ thống sang đến tháng 12.
-
-Việc dọn dẹp này chạy tự động mỗi khi backend khởi động, và lặp lại mỗi 24
-giờ nếu backend chạy liên tục không tắt. Không cần bạn làm gì cả.
-
-⚠️ **Đây là xoá vĩnh viễn, không có cách khôi phục lại.** Nếu bạn muốn giữ
-dữ liệu lâu hơn:
-
-- Đổi biến môi trường `RETENTION_MONTHS` trong `backend/.env` (VD đặt
-  `RETENTION_MONTHS=12` để giữ cả năm) — xem giải thích chi tiết trong
-  `.env.example`.
-- Hoặc tự sao lưu định kỳ trước khi dữ liệu tới hạn (xem mục "Sao lưu dữ
-  liệu" ở trên).
 
 ## Build bản production cho frontend (tuỳ chọn)
 
@@ -233,8 +213,6 @@ nên Neon/Supabase là lựa chọn bền hơn cho dùng lâu dài miễn phí.)
   luôn các biến `USER1_USERNAME`, `USER1_PASSWORD`, `USER2_USERNAME`,
   `USER2_PASSWORD`, `JWT_SECRET`... như mô tả ở mục "Đăng nhập & tài
   khoản" — chỉ áp dụng cho lần deploy đầu tiên (lúc tài khoản được tạo).
-  Muốn giữ dữ liệu lâu hơn 3 tháng mặc định, thêm biến `RETENTION_MONTHS`
-  (xem mục "Tự động xoá dữ liệu cũ" ở trên).
 - Sau khi deploy xong, bạn sẽ có 1 địa chỉ dạng
   `https://ten-backend-cua-ban.onrender.com`. Mở
   `https://ten-backend-cua-ban.onrender.com/api/health` để kiểm tra — thấy
