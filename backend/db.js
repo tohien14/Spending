@@ -35,21 +35,53 @@ function currentMonthStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// Danh sach 2 tai khoan tinh. Doc tu bien moi truong neu co, de ban co the
-// doi mat khau ma khong can sua code; neu khong co bien moi truong thi
-// dung gia tri mac dinh nay.
-const STATIC_USERS = [
-  {
-    username: process.env.USER1_USERNAME || "hien",
-    password: process.env.USER1_PASSWORD || "1234&",
-    display_name: process.env.USER1_DISPLAY_NAME || "Hiền",
-  },
-  {
-    username: process.env.USER2_USERNAME || "duc",
-    password: process.env.USER2_PASSWORD || "1234@",
-    display_name: process.env.USER2_DISPLAY_NAME || "Đức",
-  },
-];
+// Danh sach tai khoan tinh. Doc tu bien moi truong neu co, de ban co the
+// doi mat khau/them tai khoan moi ma khong can sua code.
+//
+// - Tai khoan 1 va 2 luon co san (mac dinh hien/duc neu khong dat bien).
+// - Tu tai khoan thu 3 tro di: dat ca USER{n}_USERNAME va USER{n}_PASSWORD
+//   trong file .env thi tai khoan do se duoc tao khi backend khoi dong
+//   (khong co gia tri mac dinh, vi khong the doan ban muon them ai).
+//   Vi du them tai khoan thu 3 va 4:
+//     USER3_USERNAME=an
+//     USER3_PASSWORD=matkhau3
+//     USER3_DISPLAY_NAME=An
+//     USER4_USERNAME=binh
+//     USER4_PASSWORD=matkhau4
+//     USER4_DISPLAY_NAME=Bình
+function loadStaticUsers() {
+  const users = [
+    {
+      username: process.env.USER1_USERNAME || "hien",
+      password: process.env.USER1_PASSWORD || "1234&",
+      display_name: process.env.USER1_DISPLAY_NAME || "Hiền",
+    },
+    {
+      username: process.env.USER2_USERNAME || "duc",
+      password: process.env.USER2_PASSWORD || "1234@",
+      display_name: process.env.USER2_DISPLAY_NAME || "Đức",
+    },
+    {
+      username: process.env.USER3_USERNAME || "loan",
+      password: process.env.USER3_PASSWORD || "1234",
+      display_name: process.env.USER3_DISPLAY_NAME || "Loan",
+    }
+  ];
+
+  let i = 3;
+  while (process.env[`USER${i}_USERNAME`] && process.env[`USER${i}_PASSWORD`]) {
+    users.push({
+      username: process.env[`USER${i}_USERNAME`],
+      password: process.env[`USER${i}_PASSWORD`],
+      display_name: process.env[`USER${i}_DISPLAY_NAME`] || `Người dùng ${i}`,
+    });
+    i++;
+  }
+
+  return users;
+}
+
+const STATIC_USERS = loadStaticUsers();
 
 const DEFAULT_CATEGORIES = [
   ["Ăn uống", "🍜", "#E83C91", 3000000],

@@ -78,9 +78,9 @@ duyệt để sử dụng ứng dụng.
 
 ## Đăng nhập & tài khoản
 
-Ứng dụng hỗ trợ **2 tài khoản độc lập hoàn toàn** — mỗi người đăng nhập
-riêng, dữ liệu (giao dịch, danh mục, ngân sách, thu nhập) của người này
-**không ai khác xem được**, kể cả người dùng chung 1 database.
+Ứng dụng hỗ trợ **nhiều tài khoản độc lập hoàn toàn** — mỗi người đăng
+nhập riêng, dữ liệu (giao dịch, danh mục, ngân sách, thu nhập) của người
+này **không ai khác xem được**, kể cả người dùng chung 1 database.
 
 Tài khoản mặc định (dùng được ngay, không cần cấu hình gì thêm):
 
@@ -102,14 +102,28 @@ USER2_PASSWORD=mat-khau-moi-cua-ban
 USER2_DISPLAY_NAME=Đức
 ```
 
-⚠️ Các biến này **chỉ có tác dụng ở lần chạy đầu tiên** — tức là lúc tài
-khoản được tạo ra trong database. Nếu tài khoản đã tồn tại rồi (bạn đã
-chạy `npm run dev` ít nhất 1 lần), đổi biến môi trường sau đó sẽ không tự
-đổi mật khẩu tài khoản cũ. Cách đổi mật khẩu cho tài khoản đã tồn tại: xoá
-dòng tương ứng trong bảng `users` của database rồi khởi động lại backend
-để nó tạo lại tài khoản đó với mật khẩu mới (dữ liệu chi tiêu của tài
-khoản đó vẫn giữ nguyên vì được liên kết theo `user_id`, không theo tên
-đăng nhập) — nếu cần hỗ trợ, cứ nhắn lại.
+**Muốn thêm tài khoản thứ 3, 4, 5...?** Chỉ cần thêm vào `backend/.env`,
+**không cần sửa code gì cả**:
+
+```
+USER3_USERNAME=an
+USER3_PASSWORD=mat-khau-cua-tai-khoan-nay
+USER3_DISPLAY_NAME=An
+```
+
+Rồi khởi động lại backend (`npm run dev` lại, hoặc trên Render thì thêm
+biến này vào Environment rồi để nó tự redeploy) — tài khoản mới sẽ tự
+được tạo, kèm sẵn 8 danh mục mặc định, hoàn toàn tách biệt với các tài
+khoản khác. Muốn thêm tài khoản thứ 4 thì làm tương tự với `USER4_...`,
+thứ 5 là `USER5_...`, cứ thế tăng số lên.
+
+⚠️ Các biến `USERn_...` **chỉ có tác dụng lúc tài khoản đó được tạo lần
+đầu**. Nếu tài khoản đã tồn tại rồi, đổi biến môi trường sau đó sẽ không
+tự đổi mật khẩu tài khoản cũ. Cách đổi mật khẩu cho tài khoản đã tồn tại:
+xoá dòng tương ứng trong bảng `users` của database rồi khởi động lại
+backend để nó tạo lại tài khoản đó với mật khẩu mới (dữ liệu chi tiêu của
+tài khoản đó vẫn giữ nguyên vì được liên kết theo `user_id`, không theo
+tên đăng nhập) — nếu cần hỗ trợ, cứ nhắn lại.
 
 **Nếu bạn đang nâng cấp từ bản 1-người-dùng cũ (đã có sẵn dữ liệu)** —
 không cần làm gì cả. Lần chạy đầu tiên với bản mới, hệ thống tự động gán

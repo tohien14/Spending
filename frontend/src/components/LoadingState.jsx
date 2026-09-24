@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 const MESSAGES = [
   "Đang đếm từng đồng...",
   "Đang xếp lại ví tiền...",
-  "Đang gọi hỏi To Hin...",
+  "Đang gọi hỏi To Hien...",
   "Đang cộng sổ chi tiêu...",
   "Đang nhặt từng hoá đơn...",
   "Sắp xong rồi, chờ chút xíu...",
-  "Te te tò ti té, đang load dữ liệu...",
+  "te te tò ti té, đang load dữ liệu...",
 ];
 
 export default function LoadingState({ label }) {

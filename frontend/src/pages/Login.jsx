@@ -61,7 +61,7 @@ export default function Login() {
           {loading ? "Đang đăng nhập…" : "Đăng nhập"}
         </button>
 
-        <p className="login-hint">Chào mừng đến với Spending!</p>
+        <p className="login-hint">Chào mừng bạn đến với Spending!</p>
       </form>
     </div>
   );
